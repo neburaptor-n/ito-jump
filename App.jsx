@@ -651,16 +651,17 @@ export default function App() {
   };
 
   return (
-    <div
-      className="h-screen font-sans text-slate-800 flex items-center justify-center bg-slate-950"
-      style={{
-        backgroundImage: `url('${BACKGROUND_IMAGE_URL}')`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundAttachment: 'fixed',
-      }}
-    >
-      <div className="absolute inset-0 bg-gradient-to-br from-black/80 to-black/60" />
+    <div className="h-screen font-sans text-slate-800 flex items-center justify-center bg-slate-950">
+      {/* Fondo fijo como div separado — background-attachment:fixed causa glitches en móvil */}
+      <div
+        className="fixed inset-0 -z-10"
+        style={{
+          backgroundImage: `url('${BACKGROUND_IMAGE_URL}')`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      />
+      <div className="fixed inset-0 bg-gradient-to-br from-black/80 to-black/60 -z-10" />
 
       <div className="relative z-10 w-full flex items-center justify-center h-full px-4 py-16 md:py-32">
 
