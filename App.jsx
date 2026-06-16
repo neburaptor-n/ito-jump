@@ -435,9 +435,12 @@ export default function App() {
   const [isScreenTransitioning, setIsScreenTransitioning] = useState(false);
 
   const [swipeStartX, setSwipeStartX] = useState(0);
+  const [swipeStartY, setSwipeStartY] = useState(0);
   const [swipeOffsetX, setSwipeOffsetX] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [swipeAxis, setSwipeAxis] = useState(null); // 'horizontal' | 'vertical' | null
   const [cardOpacity, setCardOpacity] = useState(1);
+  const cardRef = useRef(null);
 
   const [shuffledDeck, setShuffledDeck] = useState([]);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
@@ -542,23 +545,41 @@ export default function App() {
     handleScreenChange('menu');
   };
 
-  const handleStart = (clientX) => {
+  const handleStart = (clientX, clientY) => {
     if (swipeOffsetX === 0 && cardOpacity === 1) {
       setSwipeStartX(clientX);
+      setSwipeStartY(clientY);
+      setSwipeAxis(null);
       setIsDragging(true);
     }
   };
 
-  const handleMove = (clientX) => {
+  const handleMove = (clientX, clientY) => {
     if (!isDragging) return;
-    const offset = clientX - swipeStartX;
-    setSwipeOffsetX(offset);
-    setCardOpacity(Math.max(0, 1 - Math.abs(offset) / (window.innerWidth / 2)));
+    const dx = clientX - swipeStartX;
+    const dy = clientY - swipeStartY;
+
+    // Determine axis on first meaningful movement
+    if (!swipeAxis) {
+      if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+      const axis = Math.abs(dx) >= Math.abs(dy) ? 'horizontal' : 'vertical';
+      setSwipeAxis(axis);
+      if (axis === 'vertical') {
+        setIsDragging(false);
+        return;
+      }
+    }
+
+    if (swipeAxis === 'vertical') return;
+
+    setSwipeOffsetX(dx);
+    setCardOpacity(Math.max(0, 1 - Math.abs(dx) / (window.innerWidth / 2)));
   };
 
   const handleEnd = () => {
     if (!isDragging) return;
     setIsDragging(false);
+    setSwipeAxis(null);
 
     if (Math.abs(swipeOffsetX) > SWIPE_THRESHOLD) {
       if (isDeckFinished) {
@@ -568,10 +589,35 @@ export default function App() {
       }
     } else {
       setSwipeStartX(0);
+      setSwipeStartY(0);
       setSwipeOffsetX(0);
       setCardOpacity(1);
     }
   };
+
+  // Registrar touch listeners como no-pasivos para poder llamar preventDefault
+  // y bloquear el scroll del navegador solo cuando el swipe es horizontal.
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+
+    const onTouchStart = (e) => handleStart(e.touches[0].clientX, e.touches[0].clientY);
+    const onTouchMove = (e) => {
+      if (isDragging && swipeAxis === 'horizontal') e.preventDefault();
+      handleMove(e.touches[0].clientX, e.touches[0].clientY);
+    };
+    const onTouchEnd = () => handleEnd();
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
+
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+    };
+  });
 
   const toggleDeck = (deckKey) => {
     setSelectedDecks(prev => {
@@ -696,14 +742,12 @@ export default function App() {
 
             {/* Tarjeta */}
             <div
+              ref={cardRef}
               className={`flex-1 bg-white rounded-2xl shadow-2xl border flex flex-col relative overflow-hidden cursor-grab active:cursor-grabbing
                 ${isDeckFinished ? 'border-yellow-400 border-4' : 'border-slate-200'}`}
               style={cardStyle}
-              onTouchStart={(e) => handleStart(e.touches[0].clientX)}
-              onTouchMove={(e) => handleMove(e.touches[0].clientX)}
-              onTouchEnd={handleEnd}
-              onMouseDown={(e) => handleStart(e.clientX)}
-              onMouseMove={(e) => handleMove(e.clientX)}
+              onMouseDown={(e) => handleStart(e.clientX, e.clientY)}
+              onMouseMove={(e) => handleMove(e.clientX, e.clientY)}
               onMouseUp={handleEnd}
               onMouseLeave={() => isDragging && handleEnd()}
             >
